@@ -41,4 +41,12 @@ defined('PREVENT_DIRECT_ACCESS') OR exit('No direct script access allowed');
 | Used for adding middlewares
 |
 */
-$config['middlewares'] = [];
+$middleware_path = __DIR__ . '/../middlewares/StudentMiddleware.php';
+if (file_exists($middleware_path)) {
+    require_once $middleware_path;
+    $config['middlewares'] = [
+        'StudentMiddleware' => new StudentMiddleware()
+    ];
+} else {
+    $config['middlewares'] = [];
+}
