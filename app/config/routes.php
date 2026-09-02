@@ -48,3 +48,4 @@ $router->get('/', 'Welcome::index');
 $router->get('/student', 'StudentController::index');
 $router->match('/student/verify-secret', 'StudentController::verify_secret', ['get', 'post']);
 $router->get('/student/profile', 'StudentController::profile')->middleware('StudentMiddleware');
+$router->get('/users','UserController::index');
