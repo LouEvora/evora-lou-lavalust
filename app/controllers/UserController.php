@@ -10,12 +10,10 @@ class UserController extends Controller {
     public function __construct()
     {
         parent::__construct();
-        $this->call->model('UserModel');
     }
 
     public function index()
     {
-        $users = $this->UserModel->all();
-        $this->call->view('users', ['users' => $users]);
+        $this->call->view('users', ['users' => []]);
     }
 }
