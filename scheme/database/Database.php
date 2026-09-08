@@ -303,17 +303,42 @@ class Database {
      */
     private function validate_identifier($name)
     {
+        if (! is_string($name)) {
+            throw new InvalidArgumentException('SQL identifiers must be strings.');
+        }
+
         $name = trim($name);
 
-        if (preg_match('/\w+\s*\(.*\)/', $name)) {
+        if ($name === '*') {
             return true;
         }
 
-        if (preg_match('/^[a-zA-Z0-9_\.]+(\s+(as\s+)?[a-zA-Z0-9_]+)?$/i', $name)) {
+        $identifier = '[a-zA-Z_][a-zA-Z0-9_]*';
+        $qualified_identifier = '(?:' . $identifier . '\\.)*' . $identifier;
+        $identifier_with_alias = $qualified_identifier . '(?:\\.\\*)?(?:\\s+(?:AS\\s+)?' . $identifier . ')?';
+        $function = $identifier . '\\(\\s*(?:' . $qualified_identifier . '|\\*)\\s*\\)(?:\\s+(?:AS\\s+)?' . $identifier . ')?';
+
+        if (preg_match('/^(?:' . $identifier_with_alias . '|' . $function . ')$/i', $name)) {
             return true;
         }
 
         throw new Exception("Invalid SQL identifier: {$name}");
+    }
+
+    /**
+     * Validate a non-negative integer used in SQL pagination.
+     *
+     * @param mixed $value
+     * @param string $name
+     * @return int
+     */
+    private function validate_non_negative_integer($value, $name)
+    {
+        if (filter_var($value, FILTER_VALIDATE_INT) === false || (int) $value < 0) {
+            throw new InvalidArgumentException("{$name} must be a non-negative integer.");
+        }
+
+        return (int) $value;
     }
 
 
@@ -364,6 +389,14 @@ class Database {
     public function exec()
     {
         $this->sql .= $this->where;
+
+        $is_insert = stripos(ltrim($this->sql), 'INSERT') === 0;
+        $driver = $this->db->getAttribute(PDO::ATTR_DRIVER_NAME);
+
+        if ($is_insert && $driver === 'pgsql' && stripos($this->sql, 'RETURNING') === false) {
+            $this->sql .= ' RETURNING id';
+        }
+
         $this->get_sql = $this->sql;
 
         try {
@@ -381,16 +414,8 @@ class Database {
                 ];
             }
             
-            if (stripos($this->sql, 'INSERT') === 0) {
-                $driver = $this->db->getAttribute(PDO::ATTR_DRIVER_NAME);
-
+            if ($is_insert) {
                 if ($driver === 'pgsql') {
-                    if (strpos($this->sql, 'RETURNING') === false) {
-                        $this->sql .= ' RETURNING id';
-                        $stmt = $this->db->prepare($this->sql);
-                        $stmt->execute($this->bind_values);
-                    }
-
                     $this->last_id_inserted = (int) $stmt->fetchColumn();
                     return $this->last_id_inserted;
                 }
@@ -460,6 +485,13 @@ class Database {
         foreach ($columns as $column) {
             $this->validate_identifier($column);
         }
+
+        foreach ($records as $record) {
+            if (! is_array($record) || array_keys($record) !== $columns) {
+                throw new InvalidArgumentException('All bulk insert records must have the same columns.');
+            }
+        }
+
         $placeholders = rtrim(str_repeat('(' . rtrim(str_repeat('?, ', count($columns)), ', ') . '), ', count($records)), ', ');
         $this->bind_values = [];
         
@@ -483,6 +515,8 @@ class Database {
         if (empty($records)) {
             return false;
         }
+
+        $this->validate_identifier($primary_key);
     
         $this->sql         = '';
         $this->bind_values = [];
@@ -498,6 +532,10 @@ class Database {
             $params = [];
             
             foreach ($records as $record) {
+                if (! array_key_exists($primary_key, $record)) {
+                    throw new InvalidArgumentException("Missing primary key: {$primary_key}");
+                }
+
                 $id    = $record[$primary_key];
                 $value = $record[$column] ?? null;
                 
@@ -542,6 +580,10 @@ class Database {
      */
     public function update($fields = [])
     {
+        if (empty($fields)) {
+            throw new InvalidArgumentException('Update fields cannot be empty.');
+        }
+
         $set         = '';
         $values      = [];
         $field_array = [];
@@ -569,6 +611,14 @@ class Database {
      */
     public function insert($fields = [])
     {
+        if (empty($fields)) {
+            throw new InvalidArgumentException('Insert fields cannot be empty.');
+        }
+
+        foreach (array_keys($fields) as $field) {
+            $this->validate_identifier($field);
+        }
+
         $keys   = implode(', ', array_keys($fields));
         $values = '';
         $x      = 1;
@@ -647,7 +697,14 @@ class Database {
             throw new RuntimeException('Invalid function type: ' . $type);
         }
 
-        $function = $type . '(' . $column . ')' . (! is_null($alias) ? ' AS ' . $alias : '');
+        if (! is_null($alias)) {
+            $this->validate_identifier($alias);
+        }
+
+        $function = $type === 'DISTINCT'
+            ? 'DISTINCT ' . $column
+            : $type . '(' . $column . ')';
+        $function .= ! is_null($alias) ? ' AS ' . $alias : '';
         $this->columns = ( is_null($this->columns) ? $function : $this->columns . ', ' . $function);
 
         return $this;
@@ -735,9 +792,22 @@ class Database {
      */
     public function join($table_name, $cond, $type = '')
     {
+        $this->validate_identifier($table_name);
+
+        $type = strtoupper(trim($type));
+        $allowed_types = ['', 'INNER', 'LEFT', 'RIGHT', 'FULL OUTER', 'LEFT OUTER', 'RIGHT OUTER'];
+        if (! in_array($type, $allowed_types, true)) {
+            throw new InvalidArgumentException("Invalid join type: {$type}");
+        }
+
+        if (! is_string($cond) || trim($cond) === '') {
+            throw new InvalidArgumentException('Join condition cannot be empty.');
+        }
+
+        $join_type = $type === '' ? '' : $type . ' ';
         $this->join = (is_null($this->join))
-            ? ' ' . $type . 'JOIN' . ' ' . $this->db_prefix . $table_name . ' ON ' . $cond
-            : $this->join . ' ' . $type . 'JOIN' . ' ' . $this->db_prefix . $table_name . ' ON ' . $cond;
+            ? ' ' . $join_type . 'JOIN' . ' ' . $this->db_prefix . $table_name . ' ON ' . $cond
+            : $this->join . ' ' . $join_type . 'JOIN' . ' ' . $this->db_prefix . $table_name . ' ON ' . $cond;
 
         return $this;
     }
@@ -860,10 +930,11 @@ class Database {
             }
             $where = implode(' ' . $and_or . ' ', $_where);
         } else {
-            $this->validate_identifier($where);
-            if (is_null($where) || empty($where)) {
+            if (is_null($where) || $where === '') {
                 return $this;
             }
+
+            $this->validate_identifier($where);
 
             if (is_array($op)) {
                 $params = explode('?', $where);
@@ -949,6 +1020,7 @@ class Database {
      */
     public function where_null($where)
     {
+        $this->validate_identifier($where);
         $where = $where . ' IS NULL';
         $this->where = (is_null($this->where))
             ? ' WHERE ' . $where
@@ -965,6 +1037,7 @@ class Database {
      */
     public function where_not_null($where)
     {
+        $this->validate_identifier($where);
         $where = $where . ' IS NOT NULL';
         $this->where = (is_null($this->where))
             ? ' WHERE ' . $where
@@ -1186,6 +1259,11 @@ class Database {
      */
     public function limit($limit, $end = null)
     {
+        $limit = $this->validate_non_negative_integer($limit, 'Limit');
+        if ($end !== null) {
+            $end = $this->validate_non_negative_integer($end, 'Limit length');
+        }
+
         $driver = $this->driver;
 
         if ($end === null) {
@@ -1225,8 +1303,8 @@ class Database {
      */
     public function offset($offset)
     {
-        $this->offset  = ' OFFSET ';
-        $this->offset .= $offset;
+        $offset = $this->validate_non_negative_integer($offset, 'Offset');
+        $this->offset = ' OFFSET ' . $offset;
 
         return $this;
     }
@@ -1240,9 +1318,15 @@ class Database {
      */
     public function pagination($records_per_page, $page)
     {
+        $records_per_page = $this->validate_non_negative_integer($records_per_page, 'Records per page');
+        $page = $this->validate_non_negative_integer($page, 'Page');
+        if ($page < 1 || $records_per_page < 1) {
+            throw new InvalidArgumentException('Page and records per page must be greater than zero.');
+        }
+
         $offset = ($page - 1) * $records_per_page;
 
-        $this->limit = ' LIMIT ' . $offset . ', ' . $records_per_page;
+        $this->limit($offset, $records_per_page);
 
         return $this;
     }
@@ -1261,6 +1345,10 @@ class Database {
 
         $this->order_by = ' ORDER BY ';
         if (! is_null($order)) {
+            $order = strtoupper(trim($order));
+            if (! in_array($order, ['ASC', 'DESC'], true)) {
+                throw new InvalidArgumentException('Order must be ASC or DESC.');
+            }
             $this->order_by .= $field_name . ' ' . strtoupper($order);
         } else {
             $this->order_by .= stristr($field_name, ' ') || strtolower($field_name) === 'rand()'
@@ -1686,12 +1774,17 @@ class Database {
      */
     public function transaction()
     {
-        if (! $this->transaction_count++) {
-            return $this->db->beginTransaction();
+        if ($this->transaction_count === 0) {
+            $started = $this->db->beginTransaction();
+            if ($started) {
+                $this->transaction_count = 1;
+            }
+            return $started;
         }
 
+        $this->transaction_count++;
         $this->db->exec('SAVEPOINT trans' . $this->transaction_count);
-        return $this->transaction_count >= 0;
+        return true;
     }
 
     /**
@@ -1701,11 +1794,18 @@ class Database {
      */
     public function commit()
     {
-        if (! --$this->transaction_count) {
+        if ($this->transaction_count < 1) {
+            throw new LogicException('No active transaction to commit.');
+        }
+
+        if ($this->transaction_count === 1) {
+            $this->transaction_count = 0;
             return $this->db->commit();
         }
 
-        return $this->transaction_count >= 0;
+        $this->db->exec('RELEASE SAVEPOINT trans' . $this->transaction_count);
+        $this->transaction_count--;
+        return true;
     }
 
     /**
@@ -1715,11 +1815,19 @@ class Database {
      */
     public function roll_back()
     {
-        if (--$this->transaction_count) {
-            $this->db->exec('ROLLBACK TO trans' . ($this->transaction_count + 1));
+        if ($this->transaction_count < 1) {
+            throw new LogicException('No active transaction to roll back.');
+        }
+
+        if ($this->transaction_count > 1) {
+            $savepoint = $this->transaction_count;
+            $this->db->exec('ROLLBACK TO SAVEPOINT trans' . $savepoint);
+            $this->db->exec('RELEASE SAVEPOINT trans' . $savepoint);
+            $this->transaction_count--;
             return true;
         }
 
+        $this->transaction_count = 0;
         return $this->db->rollBack();
     }
 
