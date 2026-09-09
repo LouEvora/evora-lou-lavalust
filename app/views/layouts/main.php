@@ -53,31 +53,11 @@
             50% { opacity: 0.6; }
         }
 
-        /* ---------- SCANLINE OVERLAY ---------- */
-        body::before {
-            content: "";
-            position: fixed;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background: repeating-linear-gradient(
-                0deg,
-                rgba(0,0,0,0) 0px,
-                rgba(0,0,0,0) 2px,
-                rgba(0,0,0,0.2) 2px,
-                rgba(0,0,0,0.2) 4px
-            );
-            pointer-events: none;
-            z-index: 9999;
-        }
+        /* ---------- NO SCANLINE OVERLAY ---------- */
+        /* Removed the scanline TV effect */
 
-        /* ---------- VIGNETTE EFFECT ---------- */
-        body::after {
-            content: "";
-            position: fixed;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background: radial-gradient(ellipse at center, transparent 60%, rgba(0,0,0,0.6) 100%);
-            pointer-events: none;
-            z-index: 9998;
-        }
+        /* ---------- NO VIGNETTE EFFECT ---------- */
+        /* Removed the vignette overlay */
 
         /* ---------- ANIMATED NEON NAVBAR ---------- */
         .navbar-cyber {
@@ -545,6 +525,29 @@
             .cyber-card { padding: 1.5rem; }
             .page-header h2 { font-size: 1.4rem; }
             .navbar-cyber .navbar-brand { font-size: 1.2rem; }
+        }
+
+        /* ============================================================
+           FIX: PRODUCT NAMES VISIBLE - NEON CYAN & BOLD
+           ============================================================ */
+        .product-name-cyber {
+            color: #00f3ff !important;
+            font-weight: 800 !important;
+            font-size: 1.1rem !important;
+            text-shadow: 0 0 30px rgba(0, 243, 255, 0.4) !important;
+        }
+        .product-name-cyber:hover {
+            color: #ffffff !important;
+            text-shadow: 0 0 50px rgba(0, 243, 255, 0.6) !important;
+        }
+        .table-cyber tbody td {
+            color: #c0c0d0 !important;
+        }
+        .specs-text {
+            color: #8888aa !important;
+        }
+        .specs-text i {
+            color: #444466 !important;
         }
     </style>
 </head>
