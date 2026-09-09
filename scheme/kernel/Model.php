@@ -82,6 +82,13 @@ defined('PREVENT_DIRECT_ACCESS') OR exit('No direct script access allowed');
 */
 class Model {  
     /**
+     * Database instance.
+     *
+     * @var object
+     */
+    protected $db;
+
+    /**
      * Table Name of the Database
      *
      * @var string
@@ -157,6 +164,10 @@ class Model {
      */
     public function __construct()
     {
+        if (!isset($this->db)) {
+            $this->db = load_class('Database', 'database');
+        }
+
         $this->timestamps = $this->timestamps ?? config_item('timestamps');
         $this->has_soft_delete = $this->has_soft_delete ?? config_item('soft_delete');
         $this->soft_delete_column = $this->soft_delete_column ?? config_item('soft_delete_column');
@@ -963,6 +974,13 @@ class Model {
      */
     public function __get($key)
     {
+        if ($key === 'db') {
+            if (!isset($this->db)) {
+                $this->db = load_class('Database', 'database');
+            }
+            return $this->db;
+        }
+
         return lava_instance()->$key;
     }
                             

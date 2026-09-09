@@ -58,16 +58,15 @@ defined('PREVENT_DIRECT_ACCESS') OR exit('No direct script access allowed');
 */
 
 $database['main'] = array(
-    'driver'    => getenv('DB_DRIVER') ?: 'mysql',
+    'driver'    => getenv('DB_DRIVER') ?: 'sqlite',
     'hostname'  => getenv('DB_HOST') ?: 'localhost',
     'port'      => getenv('DB_PORT') ?: '3306',
     'username'  => getenv('DB_USERNAME') ?: getenv('DB_USER') ?: 'root',
     'password'  => getenv('DB_PASSWORD') ?: getenv('DB_PASS') ?: '',
-    'database'  => getenv('DB_NAME') ?: 'mydb',
+    'database'  => getenv('DB_NAME') ?: 'lavalust',
     'charset'   => 'utf8mb4',
     'dbprefix'  => '',
-    // Optional for SQLite
-    'path'      => ''
+    'path'      => defined('ROOT_DIR') ? ROOT_DIR . 'runtime' . DIRECTORY_SEPARATOR . 'lavalust.sqlite' : ''
 );
 
 ?>

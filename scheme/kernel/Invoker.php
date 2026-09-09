@@ -197,6 +197,40 @@ class Invoker {
 
 
 	/**
+	 * Wrap the current view content in a layout template.
+	 *
+	 * @param string $layout_file
+	 * @param array|string|null $data
+	 * @return void
+	 */
+	public function layout($layout_file, $data = NULL)
+	{
+		$content = ob_get_clean();
+		if ($content === false) {
+			$content = '';
+		}
+
+		if (!is_null($data)) {
+			if (is_array($data)) {
+				extract($data, EXTR_SKIP);
+			} elseif (is_string($data)) {
+				$$data = $data;
+			} else {
+				throw new RuntimeException('Layout parameter only accepts array or string types');
+			}
+		}
+
+		$layout_file = str_replace('\\', '/', trim((string) $layout_file, '/'));
+		$layout_path = APP_DIR . 'views/' . $layout_file . '.php';
+		if (!file_exists($layout_path)) {
+			echo $content;
+			return;
+		}
+
+		require $layout_path;
+	}
+
+	/**
 	 * Load View File
 	 *
 	 * @param string $view_file
