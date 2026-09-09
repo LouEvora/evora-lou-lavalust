@@ -103,52 +103,6 @@ class Controller
 	}
 
 	/**
-	 * Render a view directly from the controller.
-	 *
-	 * @param string $view_file
-	 * @param array|string|null $data
-	 * @return void
-	 */
-	public function view($view_file, $data = null)
-	{
-		return $this->call->view($view_file, $data);
-	}
-
-	/**
-	 * Render a layout template around the current buffered view content.
-	 * Used by app views like: $this->layout('layouts/main');
-	 *
-	 * @param string $layout_file
-	 * @param array|string|null $data
-	 * @return void
-	 */
-	public function layout($layout_file, $data = null)
-	{
-		$content = ob_get_clean();
-
-		if (!is_null($data)) {
-			if (is_array($data)) {
-				extract($data, EXTR_SKIP);
-			} elseif (is_string($data)) {
-				$$data = $data;
-			}
-		}
-
-		$layout_file = str_replace('\\', '/', trim((string)$layout_file, '/'));
-		$layout_path = APP_DIR . 'views/' . $layout_file . '.php';
-		if (!file_exists($layout_path)) {
-			if (str_ends_with($layout_file, '.php')) {
-				echo $content;
-				return;
-			}
-			echo $content;
-			return;
-		}
-
-		require $layout_path;
-	}
-
-	/**
      * Called before the controller action.
      * Used to perform logic that needs to happen before each controller action.
      *

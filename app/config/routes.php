@@ -44,25 +44,8 @@ defined('PREVENT_DIRECT_ACCESS') OR exit('No direct script access allowed');
 */
 /** @var object $router **/
 
-$router->get('/', 'AuthController@loginForm');
+$router->get('/', 'Welcome::index');
 $router->get('/student', 'StudentController::index');
 $router->match('/student/verify-secret', 'StudentController::verify_secret', ['get', 'post']);
 $router->get('/student/profile', 'StudentController::profile')->middleware('StudentMiddleware');
 $router->get('/users','UserController::index');
-
-// =============================================
-// AUTH ROUTES (Public - No login required)
-// =============================================
-$router->get('/login', 'AuthController@loginForm');
-$router->post('/login', 'AuthController@login');
-$router->get('/logout', 'AuthController@logout');
-
-// =============================================
-// PRODUCT ROUTES (Protected by ProductController __construct)
-// =============================================
-$router->get('/products', 'ProductController@index');
-$router->get('/products/create', 'ProductController@create');
-$router->post('/products/store', 'ProductController@store');
-$router->get('/products/edit/{id}', 'ProductController@edit');
-$router->post('/products/update/{id}', 'ProductController@update');
-$router->get('/products/delete/{id}', 'ProductController@delete');
